@@ -29,7 +29,12 @@ export class PlaylistManager extends EventTarget {
         if (index !== -1) {
             const playlist = state.playlists[index];
             // Move tracks back to library
-            playlist.tracks.forEach(t => state.libraryTracks.push(t));
+            playlist.tracks.forEach(t => {
+                t.subfolder = null;
+                const allTrack = state.allTracks.find(item => item.id === t.id);
+                if (allTrack) allTrack.subfolder = null;
+                state.libraryTracks.push(t);
+            });
             state.playlists.splice(index, 1);
             this.setState(state);
             this.dispatchEvent(new CustomEvent('playlist-deleted', { detail: { playlistId } }));
@@ -119,10 +124,19 @@ export class PlaylistManager extends EventTarget {
             state.libraryTracks.push(track);
         }
 
+        track.subfolder = null;
+        const allT = state.allTracks.find(t => t.id === track.id);
+        if (allT) allT.subfolder = null;
+
+        // Notifica subito per reattività istantanea dell'interfaccia
+        this.setState(state);
+        this.dispatchEvent(new CustomEvent('track-moved', { detail: { trackId, targetPlaylistId: null } }));
+
         // Se il brano si trova fisicamente in una sottocartella, spostalo fisicamente nella root (Libreria)
         if (state.rootPath && track.path) {
             const fileName = track.path.split(/[\\/]/).pop();
-            const targetRootPath = state.rootPath + '\\' + fileName;
+            const rootClean = state.rootPath.replace(/[\\/]+$/, '');
+            const targetRootPath = rootClean + '\\' + fileName;
             const normTrackPath = track.path.replace(/\//g, '\\').toLowerCase();
             const normTargetPath = targetRootPath.replace(/\//g, '\\').toLowerCase();
 
@@ -131,21 +145,13 @@ export class PlaylistManager extends EventTarget {
                     if (window.api && window.api.moveFile) {
                         await window.api.moveFile({ source: track.path, destination: targetRootPath });
                         track.path = targetRootPath;
-                        track.subfolder = null;
-                        const allTrack = state.allTracks.find(t => t.id === track.id);
-                        if (allTrack) {
-                            allTrack.path = targetRootPath;
-                            allTrack.subfolder = null;
-                        }
+                        if (allT) allT.path = targetRootPath;
                     }
                 } catch (err) {
                     console.error(`Errore durante lo spostamento del brano "${track.path}" nella cartella principale:`, err);
                 }
             }
         }
-        
-        this.setState(state);
-        this.dispatchEvent(new CustomEvent('track-moved', { detail: { trackId, targetPlaylistId: null } }));
     }
 
     reorderTrack(playlistId, trackId, newIndex) {
@@ -227,8 +233,12 @@ export class PlaylistManager extends EventTarget {
                         if (window.api && window.api.moveFile) {
                             await window.api.moveFile({ source: track.path, destination: targetRootPath });
                             track.path = targetRootPath;
+                            track.subfolder = null;
                             const allTrack = state.allTracks.find(t => t.id === track.id);
-                            if (allTrack) allTrack.path = targetRootPath;
+                            if (allTrack) {
+                                allTrack.path = targetRootPath;
+                                allTrack.subfolder = null;
+                            }
                         }
                     } catch (err) {
                         console.error(`Errore nello spostamento del file "${track.path}" nella root:`, err);

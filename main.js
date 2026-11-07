@@ -181,19 +181,17 @@ async function findAssociatedTxt(mp3Path) {
   if (fs.existsSync(txt2)) return txt2;
 
   const dir = path.dirname(mp3Path);
-  let files;
-  try {
-    files = await fs.promises.readdir(dir);
-  } catch {
-    return null;
+  const dirsToSearch = [dir];
+  const parentDir = path.dirname(dir);
+  if (parentDir && parentDir !== dir) {
+    dirsToSearch.push(parentDir);
   }
-  const txtFiles = files.filter(f => f.toLowerCase().endsWith('.txt') && !f.toLowerCase().endsWith('.m3u.txt'));
 
-  // 3. Tramite ID Suno presente nei metadati
+  // Pre-carica metadati ID3 e Suno ID una sola volta
+  let sunoId = null;
   try {
     const { parseFile } = await import('music-metadata');
     const metadata = await parseFile(mp3Path);
-    let sunoId = null;
 
     if (metadata.native && metadata.native['ID3v2.3']) {
       const woas = metadata.native['ID3v2.3'].find(t => t.id === 'WOAS');
@@ -213,31 +211,42 @@ async function findAssociatedTxt(mp3Path) {
         }
       }
     }
-
-    if (sunoId) {
-      const shortId = sunoId.split('-')[0].toLowerCase();
-      const match = txtFiles.find(f => f.toLowerCase().includes(shortId));
-      if (match) return path.join(dir, match);
-    }
   } catch {
-    // Continua col fallback
+    // Continua
   }
 
-  // 4. Normalizzazione: rimuovi suffissi come _1, (1) e compara parole chiave
   const baseMp3 = path.basename(mp3Path, '.mp3').toLowerCase()
     .replace(/[\s_]*\(\d+\)[\s_]*/g, '')
     .replace(/_\d+$/g, '')
     .replace(/[\s_]+/g, '_');
 
-  const matchFuzzy = txtFiles.find(f => {
-    const baseTxt = f.toLowerCase().replace(/\.txt$/, '').replace(/\.mp3$/, '')
-      .replace(/[\s_]*\(\d+\)[\s_]*/g, '')
-      .replace(/_\d+$/g, '')
-      .replace(/[\s_]+/g, '_');
-    return baseTxt.startsWith(baseMp3) || baseMp3.startsWith(baseTxt);
-  });
+  for (const searchDir of dirsToSearch) {
+    let files;
+    try {
+      files = await fs.promises.readdir(searchDir);
+    } catch {
+      continue;
+    }
+    const txtFiles = files.filter(f => f.toLowerCase().endsWith('.txt') && !f.toLowerCase().endsWith('.m3u.txt'));
 
-  if (matchFuzzy) return path.join(dir, matchFuzzy);
+    // 3. Tramite ID Suno presente nei metadati
+    if (sunoId) {
+      const shortId = sunoId.split('-')[0].toLowerCase();
+      const match = txtFiles.find(f => f.toLowerCase().includes(shortId));
+      if (match) return path.join(searchDir, match);
+    }
+
+    // 4. Normalizzazione: rimuovi suffissi come _1, (1) e compara parole chiave
+    const matchFuzzy = txtFiles.find(f => {
+      const baseTxt = f.toLowerCase().replace(/\.txt$/, '').replace(/\.mp3$/, '')
+        .replace(/[\s_]*\(\d+\)[\s_]*/g, '')
+        .replace(/_\d+$/g, '')
+        .replace(/[\s_]+/g, '_');
+      return baseTxt.startsWith(baseMp3) || baseMp3.startsWith(baseTxt);
+    });
+
+    if (matchFuzzy) return path.join(searchDir, matchFuzzy);
+  }
 
   return null;
 }
@@ -256,13 +265,14 @@ async function moveFileWithAssociatedTxt(source, destination) {
 
   // Se c'è un .txt associato, spostalo nella destinazione
   if (txtSource) {
-    const destDir = path.dirname(destination);
-    // Assegna il nome standard: destMP3 + ".txt"
+    // Assegna il nome standard: destMP3 + ".txt" (es. brano.mp3.txt)
     const txtDest = destination + '.txt';
-    try {
-      await moveFile(txtSource, txtDest);
-    } catch (err) {
-      console.warn(`Impossibile spostare il file .txt associato "${txtSource}":`, err.message);
+    if (path.normalize(txtSource) !== path.normalize(txtDest)) {
+      try {
+        await moveFile(txtSource, txtDest);
+      } catch (err) {
+        console.warn(`Impossibile spostare il file .txt associato "${txtSource}":`, err.message);
+      }
     }
   }
 }
@@ -411,28 +421,44 @@ function registerIpcHandlers() {
               }
             }
             if (orderedFileNames.length > 0) {
-              // Re-sort matching tracks in-place inside tracks array
               const plTrackIndices = [];
-              const plTracksToOrder = [];
-              
+              const plTracks = [];
+              const orphanTracks = [];
+
               tracks.forEach((t, idx) => {
                 if (t.subfolder === pl.name) {
                   plTrackIndices.push(idx);
-                  plTracksToOrder.push(t);
+                  const order = orderedFileNames.indexOf(t.fileName.toLowerCase());
+                  if (order !== -1) {
+                    plTracks.push({ track: t, order });
+                  } else {
+                    orphanTracks.push(t);
+                  }
                 }
               });
 
-              plTracksToOrder.sort((a, b) => {
-                const indexA = orderedFileNames.indexOf(a.fileName.toLowerCase());
-                const indexB = orderedFileNames.indexOf(b.fileName.toLowerCase());
-                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                if (indexA !== -1) return -1;
-                if (indexB !== -1) return 1;
-                return 0;
-              });
+              // Ordina i brani della playlist secondo l'ordine esatto dell'M3U
+              plTracks.sort((a, b) => a.order - b.order);
 
+              // I brani presenti nella cartella ma non nell'M3U sono stati tolti dalla playlist:
+              // spostali fisicamente nella root (Libreria principale)
+              for (const orphan of orphanTracks) {
+                orphan.subfolder = null;
+                const destPath = path.join(folderPath, path.basename(orphan.path));
+                if (path.normalize(destPath) !== path.normalize(orphan.path)) {
+                  try {
+                    await moveFileWithAssociatedTxt(orphan.path, destPath);
+                    orphan.path = destPath;
+                  } catch (moveErr) {
+                    console.warn(`Impossibile riposizionare il file orfano "${orphan.path}" nella root:`, moveErr.message);
+                  }
+                }
+              }
+
+              // Ricolloca nell'array tracks: prima i brani ordinati della playlist, poi gli orfani (ora in libreria)
+              const reordered = [...plTracks.map(p => p.track), ...orphanTracks];
               plTrackIndices.forEach((origIdx, i) => {
-                tracks[origIdx] = plTracksToOrder[i];
+                tracks[origIdx] = reordered[i];
               });
             }
           }
@@ -518,6 +544,24 @@ function registerIpcHandlers() {
         for (const f of dirEntries) {
           if (f.toLowerCase().endsWith('.m3u') && f.toLowerCase() !== `${name.toLowerCase()}.m3u`) {
             await fs.promises.unlink(path.join(targetDir, f)).catch(() => {});
+          }
+        }
+
+        // Se ci sono file MP3 rimasti nella cartella della playlist che non fanno più parte di questa playlist,
+        // spostali di nuovo nella cartella principale (basePath / Libreria)
+        const currentPlaylistTrackNames = new Set(
+          tracks.map(t => path.basename(t.path).toLowerCase())
+        );
+
+        for (const file of dirEntries) {
+          if (file.toLowerCase().endsWith('.mp3') && !currentPlaylistTrackNames.has(file.toLowerCase())) {
+            const orphanSource = path.join(targetDir, file);
+            const orphanDest = path.join(basePath, file);
+            try {
+              await moveFileWithAssociatedTxt(orphanSource, orphanDest);
+            } catch (orphanErr) {
+              console.warn(`Impossibile spostare file rimosso "${orphanSource}" alla root:`, orphanErr.message);
+            }
           }
         }
       } catch (cleanErr) {
@@ -670,16 +714,15 @@ function registerIpcHandlers() {
         console.warn(`Impossibile leggere ID3 estesi di "${filePath}":`, err.message);
       }
 
-      // Leggi eventuale file .txt associato ("brano.mp3.txt")
+      // Leggi eventuale file .txt associato ("brano.mp3.txt" o correlato)
       let txtContent = null;
-      const txtPath = filePath + '.txt';
-
       try {
-        if (fs.existsSync(txtPath)) {
+        const txtPath = await findAssociatedTxt(filePath);
+        if (txtPath && fs.existsSync(txtPath)) {
           txtContent = await fs.promises.readFile(txtPath, 'utf-8');
         }
       } catch (err) {
-        console.warn(`Impossibile leggere file .txt associato "${txtPath}":`, err.message);
+        console.warn(`Impossibile leggere file .txt associato per "${filePath}":`, err.message);
       }
 
       return {
