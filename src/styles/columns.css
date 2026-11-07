@@ -48,14 +48,14 @@
 /* Colonna Libreria Principale */
 .library-column {
   width: 380px;
-  min-width: 250px;
-  max-width: 600px;
-  resize: horizontal;
-  overflow: auto;
+  min-width: 260px;
+  max-width: 800px;
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   background: var(--bg-secondary);
+  position: relative;
+  flex-shrink: 0;
 }
 
 .column-header {
@@ -112,19 +112,42 @@
 
 /* Singola Colonna Playlist */
 .playlist-column {
-  min-width: 250px;
-  max-width: 600px;
-  width: 340px;
-  resize: horizontal;
-  overflow: auto;
+  min-width: 260px;
+  max-width: 800px;
+  width: 350px;
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   animation: slideInRight 0.3s ease-out;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Maniglia di ridimensionamento personalizzata */
+.column-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 20;
+  transition: background-color var(--transition-fast);
+}
+
+.column-resizer:hover,
+.column-resizer.resizing {
+  background-color: var(--accent-primary);
+  box-shadow: 0 0 8px hsla(270, 80%, 65%, 0.6);
+}
+
+body.resizing-col {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .playlist-header {
-  padding: 14px 16px;
+  padding: 12px 14px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-color);
   display: flex;
@@ -142,19 +165,26 @@
 .playlist-badges {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
 .playlist-time-container {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .badge-time {
   background: var(--bg-surface-hover);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
 }
 
 .playlist-playback-time {
@@ -165,6 +195,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  white-space: nowrap;
 }
 
 .playlist-playback-time.playing {
@@ -176,16 +207,22 @@
   font-size: 0.65rem;
 }
 
+.playlist-total-time {
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
 .playlist-name {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-primary);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   font-family: inherit;
   padding: 4px 6px;
   border-radius: 4px;
   flex-grow: 1;
+  min-width: 0;
   transition: all var(--transition-fast);
 }
 

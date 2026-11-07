@@ -3,6 +3,13 @@ export class ColumnRenderer {
         this.libraryContainer = containers.library;
         this.playlistsContainer = containers.playlists;
         this.callbacks = callbacks;
+        this.initLibraryResizer();
+    }
+
+    initLibraryResizer() {
+        const libraryCol = document.getElementById('main-library');
+        if (!libraryCol) return;
+        this.initColumnResizer(libraryCol, 240, 700);
     }
 
     formatDuration(seconds) {
@@ -144,10 +151,10 @@ export class ColumnRenderer {
                 <div class="playlist-title-row">
                     <input type="text" class="playlist-name" value="${playlist.name}">
                     <div class="playlist-badges">
-                        <span class="badge track-count">${playlist.tracks.length}</span>
+                        <span class="badge track-count" title="Numero brani">${playlist.tracks.length}</span>
                         <div class="playlist-time-container">
-                            <span class="badge badge-time playlist-playback-time hidden">00:00</span>
-                            <span class="badge badge-time playlist-total-time">${this.calculateTotalDuration(playlist.tracks)}</span>
+                            <span class="badge badge-time playlist-playback-time hidden" title="Avanzamento riproduzione">00:00</span>
+                            <span class="badge badge-time playlist-total-time" title="Durata totale">${this.calculateTotalDuration(playlist.tracks)}</span>
                         </div>
                     </div>
                 </div>
@@ -157,6 +164,7 @@ export class ColumnRenderer {
                 </div>
             </div>
             <div class="track-list drop-zone"></div>
+            <div class="column-resizer" title="Trascina per ridimensionare"></div>
         `;
         
         column.querySelector('.playlist-name').addEventListener('change', e => {
@@ -172,7 +180,41 @@ export class ColumnRenderer {
         });
         
         this.playlistsContainer.appendChild(column);
+        this.initColumnResizer(column);
         return column;
+    }
+
+    initColumnResizer(column, minW = 260, maxW = 800) {
+        const resizer = column.querySelector('.column-resizer');
+        if (!resizer) return;
+
+        let startX = 0;
+        let startWidth = 0;
+
+        const onMouseMove = (e) => {
+            const deltaX = e.clientX - startX;
+            const newWidth = Math.max(minW, Math.min(maxW, startWidth + deltaX));
+            column.style.width = `${newWidth}px`;
+            column.style.minWidth = `${newWidth}px`;
+        };
+
+        const onMouseUp = () => {
+            resizer.classList.remove('resizing');
+            document.body.classList.remove('resizing-col');
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startX = e.clientX;
+            startWidth = column.getBoundingClientRect().width;
+            resizer.classList.add('resizing');
+            document.body.classList.add('resizing-col');
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+        });
     }
 
     updatePlaylistPlaybackTime(playlistId, currentSecs, isPlaying) {
