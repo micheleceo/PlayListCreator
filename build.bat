@@ -29,8 +29,8 @@ if %ERRORLEVEL% EQU 0 (
     echo %~dp0dist\
     echo.
     echo File generati:
-    echo  - PlayListCreator 1.0.0.exe (Eseguibile Portatile Singolo)
-    echo  - Cartella win-unpacked/PlayListCreator.exe
+    echo  - Eseguibile Portatile Singolo aggiornato (in dist\)
+    echo  - Cartella win-unpacked\PlayListCreator.exe
     echo.
 ) else (
     echo.
