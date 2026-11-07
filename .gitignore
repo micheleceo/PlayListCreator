@@ -1,0 +1,26 @@
+# Dipendenze Node.js
+node_modules/
+
+# Cartelle e artefatti di build / packaging
+dist/
+build/
+*.exe
+
+# File multimediali e playlist locali
+*.mp3
+*.wav
+*.flac
+*.m3u
+*.zip
+
+# File temporanei di sistema e dell'editor
+desktop.ini
+Thumbs.db
+.DS_Store
+*.log
+.vscode/
+.idea/
+
+# File di ambiente
+.env
+.env.local

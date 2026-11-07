@@ -1,0 +1,36 @@
+{
+  "name": "playlist-creator",
+  "version": "1.0.0",
+  "description": "Desktop MP3 Playlist Creator & Player",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.playlistcreator.app",
+    "productName": "PlayListCreator",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "portable"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ]
+  },
+  "dependencies": {
+    "music-metadata": "^10.6.1"
+  },
+  "devDependencies": {
+    "electron": "^33.3.1"
+  },
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlayListCreator</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/columns.css">
+    <link rel="stylesheet" href="styles/player.css">
+    <link rel="stylesheet" href="styles/animations.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div class="app-container">
+        <!-- HEADER BAR -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1 class="app-title">🎵 PlayListCreator</h1>
+                <div id="folder-path-display" class="folder-path-display"></div>
+            </div>
+            <div class="header-right" style="display:flex; gap:10px;">
+                <button id="guide-btn" class="btn btn-ghost" style="border: 1px solid var(--border-color);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    Guida
+                </button>
+                <button id="add-playlist-btn" class="btn btn-secondary hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Nuova Playlist
+                </button>
+                <button id="open-folder-btn" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                    Apri Cartella
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main class="app-main">
+            <!-- Drop Zone Overlay -->
+            <div id="drop-zone-overlay" class="drop-zone-overlay">
+                <div class="drop-zone-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="drop-icon"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                    <h2>Trascina una cartella qui</h2>
+                    <p>oppure clicca Apri Cartella</p>
+                </div>
+            </div>
+
+            <!-- Left column: Main Library -->
+            <aside id="main-library" class="column library-column hidden">
+                <div class="column-header">
+                    <h2>Libreria <span class="badge" id="library-count">0</span> <span class="badge badge-time" id="library-total-time">00:00</span></h2>
+                    <div class="search-container">
+                        <input type="text" id="library-search" class="search-input" placeholder="Cerca brani...">
+                    </div>
+                </div>
+                <div class="track-list drop-zone" id="library-track-list">
+                    <!-- Tracks will be dynamically injected here -->
+                </div>
+            </aside>
+
+            <!-- Right area: Playlists -->
+            <section id="playlists-area" class="playlists-area hidden">
+                <!-- Playlist columns dynamically injected here -->
+            </section>
+        </main>
+
+        <!-- PLAYER BAR -->
+        <footer class="player-bar">
+            <!-- Left: Track Info -->
+            <div class="player-left">
+                <div class="album-art-placeholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                </div>
+                <div class="track-info">
+                    <div class="track-title" id="player-title">Nessun brano</div>
+                    <div class="track-artist" id="player-artist">-</div>
+                </div>
+            </div>
+            
+            <!-- Center: Controls & Progress -->
+            <div class="player-center">
+                <div class="transport-controls">
+                    <button class="control-btn" id="prev-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+                    </button>
+                    <button class="control-btn play-btn" id="play-pause-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="play-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    </button>
+                    <button class="control-btn" id="stop-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                    </button>
+                    <button class="control-btn" id="next-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+                    </button>
+                </div>
+                <div class="progress-container">
+                    <span class="time-label" id="current-time">0:00</span>
+                    <div class="progress-bar-wrapper" id="progress-wrapper">
+                        <div class="progress-bar-fill" id="progress-fill"></div>
+                    </div>
+                    <span class="time-label" id="total-time">0:00</span>
+                </div>
+            </div>
+
+            <!-- Right: Volume -->
+            <div class="player-right">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="volume-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                <div class="volume-slider-wrapper">
+                    <div class="volume-slider-fill" id="volume-fill"></div>
+                </div>
+            </div>
+        </footer>
+        
+        <!-- SAVE ALL BAR -->
+        <button id="save-all-btn" class="floating-btn save-all-btn hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Salva Tutto
+        </button>
+
+        <!-- Modal Guida Utente -->
+        <div id="guide-modal" class="modal-overlay hidden">
+            <div class="modal-content guide-modal-content" style="max-width: 750px; max-height: 85vh; overflow-y: auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:12px; margin-bottom:16px;">
+                    <h2 style="margin:0; font-size:1.4rem;">📖 Guida & Manuale Utente — PlayListCreator</h2>
+                    <button id="guide-close-btn" class="btn btn-ghost" style="padding:4px 8px; font-size:1.2rem;">✕</button>
+                </div>
+                
+                <div class="guide-body" style="text-align:left; font-size:0.92rem; line-height:1.6; color:var(--text-primary);">
+                    <section style="margin-bottom:20px;">
+                        <h3 style="color:var(--accent-secondary); margin-bottom:6px;">📌 Obiettivi del Software</h3>
+                        <p style="margin:0;">
+                            <strong>PlayListCreator</strong> è nato per semplificare l'ascolto, l'organizzazione e la suddivisione di grandi raccolte di brani MP3 presenti in una cartella principale. Il software permette di ascoltare i file con un lettore audio completo, smistarli rapidamente trascinandoli in playlist personalizzate e infine <strong>salvare la struttura organizzata direttamente su disco</strong> creando le relative sottocartelle fisiche, i file di metadati correlati (`.txt`) e i file playlist standard (`.m3u`).
+                        </p>
+                    </section>
+
+                    <section style="margin-bottom:20px;">
+                        <h3 style="color:var(--accent-primary); margin-bottom:8px;">✨ Lista Dettagliata delle Funzionalità</h3>
+                        <ul style="padding-left:20px; margin:0; display:flex; flex-direction:column; gap:8px;">
+                            <li><strong>Scansione Ricorsiva Automatica:</strong> Trascina qualsiasi cartella (o usa "Apri Cartella") per rilevare automaticamente tutti i brani MP3 presenti nella cartella e nelle sue sottocartelle. Le sottocartelle esistenti vengono caricate direttamente come playlist preesistenti.</li>
+                            <li><strong>Lettore Audio Integrato:</strong> Riproduci i brani con doppio clic. Include comandi Play/Pausa, Stop, Brano Precedente/Successivo, barra di avanzamento cliccabile e regolazione del volume.</li>
+                            <li><strong>Indicatori di Stato e Pausa:</strong> Mostra un'animazione Equalizzatore per il brano in riproduzione e un'icona di pausa <strong>⏸</strong> quando il brano corrente è in pausa.</li>
+                            <li><strong>Calcolo Durata al Secondo e Totali:</strong> Visualizza la durata precisa (`mm:ss`) di ciascun brano MP3 e calcola automaticamente la <strong>durata totale della Libreria</strong> e di <strong>ciascuna Playlist</strong>.</li>
+                            <li><strong>Gestione Playlist & Drag & Drop:</strong> Crea nuove playlist col pulsante "Nuova Playlist", rinomina il titolo direttamente nel campo testo ed elimina o salva ciascuna colonna. Trascina i brani tra la Libreria e le colonne Playlist oppure riordinali all'interno della stessa colonna.</li>
+                            <li><strong>Selezione Multipla:</strong> Seleziona più brani tenendo premuto <code>Ctrl</code> (o <code>Cmd</code>) e trascinali contemporaneamente in una playlist.</li>
+                            <li><strong>Colonne Ridimensionabili:</strong> Trascina il bordo destro delle colonne della Libreria e delle Playlist per ridimensionarle a piacimento in base alla lunghezza dei titoli.</li>
+                            <li><strong>Ricerca Istantanea:</strong> Filtra velocemente i brani della libreria digitando nel campo di ricerca per titolo, artista o nome del file.</li>
+                            <li><strong>Salvataggio Fisico e File Correlati:</strong> Quando salvi una playlist, il software crea la sottocartella fisica con il nome della playlist, <strong>sposta il file MP3 assieme al suo eventuale file `.txt` di metadati associato</strong> e genera il file di playlist standard <code>.m3u</code>.</li>
+                            <li><strong>Aggiornamento Dinamico dei Percorsi:</strong> Se un brano in riproduzione viene salvato e spostato in una sottocartella, il lettore aggiorna istantaneamente il percorso del file permettendone la riascolto continuo senza interruzioni.</li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Dettagli Brano con 2 Tab -->
+        <div id="track-details-modal" class="modal-overlay hidden">
+            <div class="modal-content details-modal-content" style="max-width: 680px; width: 90%; max-height: 85vh; display: flex; flex-direction: column;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+                    <h3 id="details-modal-title" style="margin:0; font-size:1.15rem; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:85%;">🎵 Dettagli Brano</h3>
+                    <button id="details-modal-close" class="btn btn-ghost" style="padding:4px 8px; font-size:1.1rem;">✕</button>
+                </div>
+
+                <!-- Tabs Navigation -->
+                <div class="modal-tabs" style="display:flex; gap:12px; border-bottom:1px solid var(--border-color); margin-top:12px;">
+                    <button id="tab-btn-id3" class="tab-btn active" style="padding:8px 16px; background:transparent; border:none; border-bottom:2px solid var(--accent-primary); color:var(--text-primary); font-weight:600; cursor:pointer; font-size:0.9rem;">
+                        🏷️ Tag ID3 & Audio
+                    </button>
+                    <button id="tab-btn-txt" class="tab-btn" style="padding:8px 16px; background:transparent; border:none; border-bottom:2px solid transparent; color:var(--text-secondary); font-weight:500; cursor:pointer; font-size:0.9rem;">
+                        📄 Info File TXT
+                    </button>
+                </div>
+
+                <!-- Tab Content 1: ID3 -->
+                <div id="tab-content-id3" class="tab-content" style="padding:16px 0; overflow-y:auto; flex-grow:1;">
+                    <div id="id3-container" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; font-size:0.88rem;">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Tab Content 2: TXT File -->
+                <div id="tab-content-txt" class="tab-content hidden" style="padding:16px 0; overflow-y:auto; flex-grow:1;">
+                    <div id="txt-container" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:14px; font-family:monospace; font-size:0.85rem; color:var(--text-primary); white-space:pre-wrap; word-break:break-word; max-height:300px; overflow-y:auto;">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirmation Modal -->
+        <div id="confirm-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h3 id="modal-title">Conferma</h3>
+                <p id="modal-message">Sei sicuro di voler procedere?</p>
+                <div class="modal-actions">
+                    <button id="modal-cancel" class="btn btn-ghost">Annulla</button>
+                    <button id="modal-ok" class="btn btn-primary">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast notification area -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <!-- JS Module -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
