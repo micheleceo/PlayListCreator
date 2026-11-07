@@ -162,24 +162,108 @@ async function moveFile(source, destination) {
 }
 
 /**
+ * Trova il percorso del file .txt associato a un file MP3.
+ * Supporta:
+ * 1. "brano.mp3.txt"
+ * 2. "brano.txt"
+ * 3. Tramite Suno ID univoco (tag COMM/WOAS) cercato nella cartella del file
+ * 4. Tramite normalizzazione del nome (spazi <-> underscore, ignorando suffissi progressivi come _1, (1))
+ * @param {string} mp3Path - Percorso del file MP3
+ * @returns {Promise<string|null>} Percorso assoluto del file .txt o null
+ */
+async function findAssociatedTxt(mp3Path) {
+  // 1. Nome esatto .mp3.txt
+  const txt1 = mp3Path + '.txt';
+  if (fs.existsSync(txt1)) return txt1;
+
+  // 2. Nome senza .mp3 + .txt
+  const txt2 = mp3Path.replace(/\.mp3$/i, '.txt');
+  if (fs.existsSync(txt2)) return txt2;
+
+  const dir = path.dirname(mp3Path);
+  let files;
+  try {
+    files = await fs.promises.readdir(dir);
+  } catch {
+    return null;
+  }
+  const txtFiles = files.filter(f => f.toLowerCase().endsWith('.txt') && !f.toLowerCase().endsWith('.m3u.txt'));
+
+  // 3. Tramite ID Suno presente nei metadati
+  try {
+    const { parseFile } = await import('music-metadata');
+    const metadata = await parseFile(mp3Path);
+    let sunoId = null;
+
+    if (metadata.native && metadata.native['ID3v2.3']) {
+      const woas = metadata.native['ID3v2.3'].find(t => t.id === 'WOAS');
+      if (woas) {
+        const val = typeof woas.value === 'string' ? woas.value : (typeof woas.val === 'string' ? woas.val : '');
+        const m = val.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+        if (m) sunoId = m[1];
+      }
+    }
+    if (!sunoId && metadata.common && metadata.common.comment) {
+      for (const c of metadata.common.comment) {
+        const text = typeof c === 'string' ? c : (c.text || '');
+        const m = text.match(/id=([a-f0-9\-]+)/i);
+        if (m) {
+          sunoId = m[1];
+          break;
+        }
+      }
+    }
+
+    if (sunoId) {
+      const shortId = sunoId.split('-')[0].toLowerCase();
+      const match = txtFiles.find(f => f.toLowerCase().includes(shortId));
+      if (match) return path.join(dir, match);
+    }
+  } catch {
+    // Continua col fallback
+  }
+
+  // 4. Normalizzazione: rimuovi suffissi come _1, (1) e compara parole chiave
+  const baseMp3 = path.basename(mp3Path, '.mp3').toLowerCase()
+    .replace(/[\s_]*\(\d+\)[\s_]*/g, '')
+    .replace(/_\d+$/g, '')
+    .replace(/[\s_]+/g, '_');
+
+  const matchFuzzy = txtFiles.find(f => {
+    const baseTxt = f.toLowerCase().replace(/\.txt$/, '').replace(/\.mp3$/, '')
+      .replace(/[\s_]*\(\d+\)[\s_]*/g, '')
+      .replace(/_\d+$/g, '')
+      .replace(/[\s_]+/g, '_');
+    return baseTxt.startsWith(baseMp3) || baseMp3.startsWith(baseTxt);
+  });
+
+  if (matchFuzzy) return path.join(dir, matchFuzzy);
+
+  return null;
+}
+
+/**
  * Sposta un file MP3 e l'eventuale file .txt associato.
- * Il file .txt associato ha lo stesso nome con estensione .mp3.txt
  * @param {string} source - Percorso sorgente del file MP3
  * @param {string} destination - Percorso destinazione del file MP3
  */
 async function moveFileWithAssociatedTxt(source, destination) {
+  // Cerca il file .txt associato prima di spostare l'MP3
+  const txtSource = await findAssociatedTxt(source);
+
   // Sposta il file principale
   await moveFile(source, destination);
 
-  // Cerca e sposta il file .txt associato (es. "brano.mp3.txt")
-  const txtSource = source + '.txt';
-  const txtDest = destination + '.txt';
-
-  try {
-    await fs.promises.access(txtSource, fs.constants.F_OK);
-    await moveFile(txtSource, txtDest);
-  } catch {
-    // Il file .txt non esiste, nessun problema
+  // Se c'è un .txt associato, spostalo nella destinazione
+  if (txtSource) {
+    const destDir = path.dirname(destination);
+    // Assegna il nome standard: destMP3 + ".txt"
+    const txtDest = destination + '.txt';
+    try {
+      await moveFile(txtSource, txtDest);
+    } catch (err) {
+      console.warn(`Impossibile spostare il file .txt associato "${txtSource}":`, err.message);
+    }
   }
 }
 
@@ -291,9 +375,28 @@ function registerIpcHandlers() {
 
       // Ordina i brani in ciascuna sottocartella in base al file .m3u se presente
       for (const pl of existingPlaylists) {
-        const m3uFilePath = path.join(pl.path, `${path.basename(pl.path)}.m3u`);
         try {
-          if (fs.existsSync(m3uFilePath)) {
+          // Cerca il file .m3u nella cartella della playlist
+          // 1. Con il nome esatto della cartella (<cartella>.m3u)
+          // 2. Altrimenti il file .m3u più recente presente nella cartella
+          let m3uFilePath = path.join(pl.path, `${path.basename(pl.path)}.m3u`);
+          if (!fs.existsSync(m3uFilePath)) {
+            const dirFiles = fs.readdirSync(pl.path);
+            const m3uFiles = dirFiles.filter(f => f.toLowerCase().endsWith('.m3u'));
+            if (m3uFiles.length > 0) {
+              // Prendi quello modificato più di recente
+              m3uFiles.sort((a, b) => {
+                const statA = fs.statSync(path.join(pl.path, a));
+                const statB = fs.statSync(path.join(pl.path, b));
+                return statB.mtimeMs - statA.mtimeMs;
+              });
+              m3uFilePath = path.join(pl.path, m3uFiles[0]);
+            } else {
+              m3uFilePath = null;
+            }
+          }
+
+          if (m3uFilePath && fs.existsSync(m3uFilePath)) {
             const m3uContent = fs.readFileSync(m3uFilePath, 'utf-8');
             const lines = m3uContent.split('\n');
             const orderedFileNames = [];
@@ -407,6 +510,18 @@ function registerIpcHandlers() {
           oldPath: sourceFile,
           newPath: destFile
         });
+      }
+
+      // Rimuovi eventuali altri file .m3u residui con nomi vecchi nella cartella della playlist
+      try {
+        const dirEntries = await fs.promises.readdir(targetDir);
+        for (const f of dirEntries) {
+          if (f.toLowerCase().endsWith('.m3u') && f.toLowerCase() !== `${name.toLowerCase()}.m3u`) {
+            await fs.promises.unlink(path.join(targetDir, f)).catch(() => {});
+          }
+        }
+      } catch (cleanErr) {
+        // Ignora eventuali errori di pulizia
       }
 
       // Genera e salva il file M3U nella sottocartella

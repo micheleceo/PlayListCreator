@@ -106,7 +106,7 @@ export class PlaylistManager extends EventTarget {
         }
     }
 
-    moveTrackToLibrary(trackId) {
+    async moveTrackToLibrary(trackId) {
         const state = this.getState();
         const track = state.allTracks.find(t => t.id === trackId);
         if (!track) return;
@@ -117,6 +117,31 @@ export class PlaylistManager extends EventTarget {
         
         if (!state.libraryTracks.find(t => t.id === trackId)) {
             state.libraryTracks.push(track);
+        }
+
+        // Se il brano si trova fisicamente in una sottocartella, spostalo fisicamente nella root (Libreria)
+        if (state.rootPath && track.path) {
+            const fileName = track.path.split(/[\\/]/).pop();
+            const targetRootPath = state.rootPath + '\\' + fileName;
+            const normTrackPath = track.path.replace(/\//g, '\\').toLowerCase();
+            const normTargetPath = targetRootPath.replace(/\//g, '\\').toLowerCase();
+
+            if (normTrackPath !== normTargetPath) {
+                try {
+                    if (window.api && window.api.moveFile) {
+                        await window.api.moveFile({ source: track.path, destination: targetRootPath });
+                        track.path = targetRootPath;
+                        track.subfolder = null;
+                        const allTrack = state.allTracks.find(t => t.id === track.id);
+                        if (allTrack) {
+                            allTrack.path = targetRootPath;
+                            allTrack.subfolder = null;
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Errore durante lo spostamento del brano "${track.path}" nella cartella principale:`, err);
+                }
+            }
         }
         
         this.setState(state);
@@ -156,10 +181,12 @@ export class PlaylistManager extends EventTarget {
                     const track = playlist.tracks.find(t => t.id === moved.id);
                     if (track) {
                         track.path = moved.newPath;
+                        track.subfolder = playlist.name;
                     }
                     const allTrack = state.allTracks.find(t => t.id === moved.id);
                     if (allTrack) {
                         allTrack.path = moved.newPath;
+                        allTrack.subfolder = playlist.name;
                     }
                 });
             }
